@@ -1,3 +1,3 @@
 # my-angular-prompt-dev
 
-for my-angular-app2 demo app hosting only
+for my-angular-app2 dev app hosting only
