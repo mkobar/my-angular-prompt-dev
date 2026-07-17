@@ -41189,9 +41189,17 @@ function PromptFormComponent_Conditional_51_Template(rf, ctx) {
     \u0275\u0275elementEnd();
   }
 }
+function PromptFormComponent_Conditional_69_Template(rf, ctx) {
+  if (rf & 1) {
+    \u0275\u0275elementStart(0, "p", 7);
+    \u0275\u0275text(1, "Enter valid absolute URLs separated by spaces or commas.");
+    \u0275\u0275elementEnd();
+  }
+}
 var PromptFormComponent = class _PromptFormComponent {
   formBuilder = inject2(FormBuilder);
   defaultPromptTemplate = "Generate an [output] of [length] containing specific sections of [sections] for an audience of [audience] with a [tone] tone using the following file contents [files] and using the following URLs [urls]";
+  urlPattern = /^https?:\/\/([\w-]+\.)+[\w-]{2,}(\/[^\s]*)?$/i;
   outputOptions = [
     "Journal Article",
     "Dissertation/Thesis",
@@ -41255,7 +41263,7 @@ var PromptFormComponent = class _PromptFormComponent {
     lengthValue: [0, [Validators.min(0)]],
     sections: [""],
     files: [""],
-    urls: [""]
+    urls: ["", [this.urlsValidator.bind(this)]]
   });
   constructor() {
     effect(() => {
@@ -41302,11 +41310,11 @@ var PromptFormComponent = class _PromptFormComponent {
     const names = Array.from(selectedFiles).map((file) => file.name);
     const fileNames = names.join(", ");
     this.form.controls.files.setValue(fileNames);
-    this.replacePromptPlaceholder("files", fileNames);
+    this.replaceFilesInPrompt(fileNames);
   }
   onUrlsChanged() {
     const urls = this.normalizeUrls(this.form.controls.urls.value);
-    this.replacePromptPlaceholder("urls", urls);
+    this.replaceUrlsInPrompt(urls);
   }
   onOutputChanged() {
     const selectedOutput = String(this.form.controls.output.value ?? "").trim();
@@ -41314,19 +41322,19 @@ var PromptFormComponent = class _PromptFormComponent {
   }
   onAudienceChanged() {
     const selectedAudience = String(this.form.controls.audience.value ?? "").trim();
-    this.replacePromptPlaceholder("audience", selectedAudience);
+    this.replaceAudienceInPrompt(selectedAudience);
   }
   onToneChanged() {
     const selectedTone = String(this.form.controls.tone.value ?? "").trim();
-    this.replacePromptPlaceholder("tone", selectedTone);
+    this.replaceToneInPrompt(selectedTone);
   }
   onLengthChanged() {
     const lengthText = this.buildLength(this.form.controls.lengthType.value, this.form.controls.lengthValue.value);
-    this.replacePromptPlaceholder("length", lengthText);
+    this.replaceLengthInPrompt(lengthText);
   }
   onSectionsChanged() {
     const sections = this.normalizeSections(this.form.controls.sections.value);
-    this.replaceSectionsPlaceholder(sections);
+    this.replaceSectionsInPrompt(sections);
   }
   onSubmit() {
     if (this.form.invalid || this.isLengthInvalid()) {
@@ -41389,22 +41397,124 @@ var PromptFormComponent = class _PromptFormComponent {
       this.form.controls.prompt.setValue(updatedPromptText);
     }
   }
-  replaceSectionsPlaceholder(value) {
+  replaceAudienceInPrompt(value) {
+    const selectedAudience = String(value ?? "").trim();
+    if (!selectedAudience) {
+      return;
+    }
+    const promptText = String(this.form.controls.prompt.value ?? "");
+    const placeholderPattern = /\[audience\]/gi;
+    const audienceClausePattern = /(for an audience of\s+)(.+?)(?=\s+(?:with a|using the following file contents|and using the following URLs)|$)/i;
+    let updatedPromptText = promptText;
+    if (placeholderPattern.test(promptText)) {
+      updatedPromptText = promptText.replace(placeholderPattern, selectedAudience);
+    } else if (audienceClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(audienceClausePattern, `$1${selectedAudience}`);
+    } else {
+      updatedPromptText = `${promptText.trim()} for an audience of ${selectedAudience}`;
+    }
+    if (updatedPromptText !== promptText) {
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
+    }
+  }
+  replaceToneInPrompt(value) {
+    const selectedTone = String(value ?? "").trim();
+    if (!selectedTone) {
+      return;
+    }
+    const promptText = String(this.form.controls.prompt.value ?? "");
+    const placeholderPattern = /\[tone\]/gi;
+    const toneClausePattern = /(with a\s+)(.+?)(\s+tone)(?=\s+(?:using the following file contents|and using the following URLs)|$)/i;
+    let updatedPromptText = promptText;
+    if (placeholderPattern.test(promptText)) {
+      updatedPromptText = promptText.replace(placeholderPattern, selectedTone);
+    } else if (toneClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(toneClausePattern, `$1${selectedTone}$3`);
+    } else {
+      updatedPromptText = `${promptText.trim()} with a ${selectedTone} tone`;
+    }
+    if (updatedPromptText !== promptText) {
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
+    }
+  }
+  replaceLengthInPrompt(value) {
+    const lengthText = String(value ?? "").trim();
+    if (!lengthText) {
+      return;
+    }
+    const promptText = String(this.form.controls.prompt.value ?? "");
+    const placeholderPattern = /\[length\]/gi;
+    const lengthClausePattern = /\sof\s+(?:N\/A|\d+\s+(?:Words|Characters \(inc\. spaces\)|Characters \(no spaces\)|Paragraphs|Sentences|Lines|Pages|Slides))(?=\s+(?:containing specific sections of|for an audience of|with a|using the following file contents|and using the following URLs)|$)/i;
+    let updatedPromptText = promptText;
+    if (placeholderPattern.test(promptText)) {
+      updatedPromptText = promptText.replace(placeholderPattern, lengthText);
+    } else if (lengthClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(lengthClausePattern, ` of ${lengthText}`);
+    } else {
+      updatedPromptText = `${promptText.trim()} of ${lengthText}`;
+    }
+    if (updatedPromptText !== promptText) {
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
+    }
+  }
+  replaceSectionsInPrompt(value) {
     const normalizedValue = String(value ?? "").trim();
     if (!normalizedValue) {
       return;
     }
     const promptText = String(this.form.controls.prompt.value ?? "");
     const placeholderPattern = /\[sections\]/gi;
+    const sectionClausePattern = /(containing specific sections of\s+)(.+?)(?=\s+(?:for an audience of|with a|using the following file contents|and using the following URLs)|$)/i;
     let updatedPromptText = promptText;
     if (placeholderPattern.test(promptText)) {
       updatedPromptText = promptText.replace(placeholderPattern, normalizedValue);
+    } else if (sectionClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(sectionClausePattern, `$1${normalizedValue}`);
     } else {
-      const sectionClausePattern = /(containing specific sections of\s+)(.+?)(\s+for an audience)/i;
-      updatedPromptText = promptText.replace(sectionClausePattern, `$1${normalizedValue}$3`);
+      updatedPromptText = `${promptText.trim()} containing specific sections of ${normalizedValue}`;
     }
     if (updatedPromptText !== promptText) {
-      this.form.controls.prompt.setValue(updatedPromptText);
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
+    }
+  }
+  replaceFilesInPrompt(value) {
+    const selectedFiles = String(value ?? "").trim();
+    if (!selectedFiles) {
+      return;
+    }
+    const promptText = String(this.form.controls.prompt.value ?? "");
+    const placeholderPattern = /\[files\]/gi;
+    const filesClausePattern = /(using the following file contents\s+)(.+?)(?=\s+(?:and using the following URLs)|$)/i;
+    let updatedPromptText = promptText;
+    if (placeholderPattern.test(promptText)) {
+      updatedPromptText = promptText.replace(placeholderPattern, selectedFiles);
+    } else if (filesClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(filesClausePattern, `$1${selectedFiles}`);
+    } else {
+      updatedPromptText = `${promptText.trim()} using the following file contents ${selectedFiles}`;
+    }
+    if (updatedPromptText !== promptText) {
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
+    }
+  }
+  replaceUrlsInPrompt(value) {
+    const normalizedUrls = String(value ?? "").trim();
+    if (!normalizedUrls) {
+      return;
+    }
+    const promptText = String(this.form.controls.prompt.value ?? "");
+    const placeholderPattern = /\[urls\]/gi;
+    const urlsClausePattern = /(and using the following URLs\s+)(.+?)$/i;
+    let updatedPromptText = promptText;
+    if (placeholderPattern.test(promptText)) {
+      updatedPromptText = promptText.replace(placeholderPattern, normalizedUrls);
+    } else if (urlsClausePattern.test(promptText)) {
+      updatedPromptText = promptText.replace(urlsClausePattern, `$1${normalizedUrls}`);
+    } else {
+      updatedPromptText = `${promptText.trim()} and using the following URLs ${normalizedUrls}`;
+    }
+    if (updatedPromptText !== promptText) {
+      this.form.controls.prompt.setValue(updatedPromptText.replace(/\s{2,}/g, " ").trim());
     }
   }
   normalizeUrls(urls) {
@@ -41413,6 +41523,14 @@ var PromptFormComponent = class _PromptFormComponent {
       return "";
     }
     return rawUrls.split(/[\s,]+/).map((url) => url.trim()).filter((url) => url.length > 0).join(", ");
+  }
+  urlsValidator(control) {
+    const normalizedUrls = this.normalizeUrls(String(control.value ?? ""));
+    if (!normalizedUrls) {
+      return null;
+    }
+    const hasInvalidUrl = normalizedUrls.split(", ").some((url) => !this.urlPattern.test(url));
+    return hasInvalidUrl ? { invalidUrls: true } : null;
   }
   normalizeSections(sections) {
     const rawSections = String(sections ?? "").trim();
@@ -41473,7 +41591,7 @@ var PromptFormComponent = class _PromptFormComponent {
   static \u0275fac = function PromptFormComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _PromptFormComponent)();
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptFormComponent, selectors: [["app-prompt-form"]], inputs: { prefillPrompt: [1, "prefillPrompt"] }, outputs: { submitted: "submitted" }, decls: 71, vars: 5, consts: [["novalidate", "", 1, "prompt-form", 3, "ngSubmit", "formGroup"], [1, "field-group"], [1, "inline-field", "prompt-inline"], ["for", "prompt"], [1, "required"], ["id", "prompt", "formControlName", "prompt", "rows", "5", "aria-describedby", "prompt-help"], ["id", "prompt-help"], [1, "error"], [1, "inline-field"], ["for", "output"], ["id", "output", "formControlName", "output", 3, "change"], ["value", ""], [3, "value"], ["for", "audience"], ["id", "audience", "formControlName", "audience", 3, "change"], ["for", "tone"], ["id", "tone", "formControlName", "tone", 3, "change"], [1, "length-row"], ["for", "lengthValue"], ["id", "lengthValue", "type", "number", "min", "0", "step", "1", "inputmode", "numeric", "formControlName", "lengthValue", "placeholder", "Number", "aria-label", "Length number", 3, "input"], ["id", "lengthType", "formControlName", "lengthType", 3, "change"], ["for", "sections"], ["id", "sections", "type", "text", "formControlName", "sections", 3, "input", "change", "blur"], ["for", "files"], ["id", "files", "type", "file", "multiple", "", 3, "change"], ["for", "urls"], ["id", "urls", "type", "text", "formControlName", "urls", 3, "input", "change", "blur"], ["type", "submit"]], template: function PromptFormComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptFormComponent, selectors: [["app-prompt-form"]], inputs: { prefillPrompt: [1, "prefillPrompt"] }, outputs: { submitted: "submitted" }, decls: 72, vars: 6, consts: [["novalidate", "", 1, "prompt-form", 3, "ngSubmit", "formGroup"], [1, "field-group"], [1, "inline-field", "prompt-inline"], ["for", "prompt"], [1, "required"], ["id", "prompt", "formControlName", "prompt", "rows", "5", "aria-describedby", "prompt-help"], ["id", "prompt-help"], [1, "error"], [1, "inline-field"], ["for", "output"], ["id", "output", "formControlName", "output", 3, "change"], ["value", ""], [3, "value"], ["for", "audience"], ["id", "audience", "formControlName", "audience", 3, "change"], ["for", "tone"], ["id", "tone", "formControlName", "tone", 3, "change"], [1, "length-row"], ["for", "lengthValue"], ["id", "lengthValue", "type", "number", "min", "0", "step", "1", "inputmode", "numeric", "formControlName", "lengthValue", "placeholder", "Number", "aria-label", "Length number", 3, "input"], ["id", "lengthType", "formControlName", "lengthType", 3, "change"], ["for", "sections"], ["id", "sections", "type", "text", "formControlName", "sections", "placeholder", "Abstract, Intro, Data, Analysis, Recommendations, Summary", 3, "input", "change", "blur"], ["for", "files"], ["id", "files", "type", "file", "multiple", "", 3, "change"], ["for", "urls"], ["id", "urls", "type", "text", "formControlName", "urls", "placeholder", "http://www.yahoo.com, https://www.google.com", 3, "input", "change", "blur"], ["type", "submit"]], template: function PromptFormComponent_Template(rf, ctx) {
     if (rf & 1) {
       \u0275\u0275elementStart(0, "form", 0);
       \u0275\u0275listener("ngSubmit", function PromptFormComponent_Template_form_ngSubmit_0_listener() {
@@ -41598,9 +41716,11 @@ var PromptFormComponent = class _PromptFormComponent {
       });
       \u0275\u0275elementEnd();
       \u0275\u0275controlCreate();
-      \u0275\u0275elementEnd()();
-      \u0275\u0275elementStart(69, "button", 27);
-      \u0275\u0275text(70, "Save Prompt");
+      \u0275\u0275elementEnd();
+      \u0275\u0275conditionalCreate(69, PromptFormComponent_Conditional_69_Template, 2, 0, "p", 7);
+      \u0275\u0275elementEnd();
+      \u0275\u0275elementStart(70, "button", 27);
+      \u0275\u0275text(71, "Save Prompt");
       \u0275\u0275elementEnd()();
     }
     if (rf & 2) {
@@ -41637,6 +41757,8 @@ var PromptFormComponent = class _PromptFormComponent {
       \u0275\u0275textInterpolate1("Selected: ", ctx.form.controls.files.value || "None");
       \u0275\u0275advance(5);
       \u0275\u0275control();
+      \u0275\u0275advance();
+      \u0275\u0275conditional(ctx.form.controls.urls.touched && ctx.form.controls.urls.invalid ? 69 : -1);
     }
   }, dependencies: [ReactiveFormsModule, \u0275NgNoValidate, NgSelectOption, \u0275NgSelectMultipleOption, DefaultValueAccessor, NumberValueAccessor, SelectControlValueAccessor, NgControlStatus, NgControlStatusGroup, MinValidator, FormGroupDirective, FormControlName], styles: ["\n[_nghost-%COMP%] {\n  display: block;\n  --form-label-width: 120px;\n}\n.prompt-form[_ngcontent-%COMP%] {\n  background: #ffffff;\n  border: 1px solid #dbe4f0;\n  border-radius: 20px;\n  padding: 22px;\n  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);\n}\n.field-group[_ngcontent-%COMP%] {\n  margin-bottom: 14px;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.inline-field[_ngcontent-%COMP%] {\n  display: grid;\n  grid-template-columns: var(--form-label-width) 1fr;\n  align-items: center;\n  gap: 10px;\n}\n.prompt-inline[_ngcontent-%COMP%] {\n  align-items: start;\n}\n.length-row[_ngcontent-%COMP%] {\n  display: grid;\n  grid-template-columns: var(--form-label-width) 150px 1fr;\n  align-items: center;\n  gap: 10px;\n}\nlabel[_ngcontent-%COMP%] {\n  font-weight: 600;\n  color: #1e293b;\n}\n.required[_ngcontent-%COMP%] {\n  color: #dc2626;\n}\ninput[_ngcontent-%COMP%], \nselect[_ngcontent-%COMP%], \ntextarea[_ngcontent-%COMP%] {\n  width: 100%;\n  border: 1px solid #cbd5e1;\n  border-radius: 12px;\n  padding: 10px 12px;\n  font: inherit;\n  background: #f8fafc;\n}\ntextarea[_ngcontent-%COMP%] {\n  min-height: 120px;\n  resize: vertical;\n}\nsmall[_ngcontent-%COMP%] {\n  color: #64748b;\n}\n.error[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #b91c1c;\n  font-size: 0.9rem;\n}\nbutton[_ngcontent-%COMP%] {\n  border: 0;\n  border-radius: 999px;\n  background:\n    linear-gradient(\n      135deg,\n      #2563eb,\n      #4f46e5);\n  color: #ffffff;\n  font-weight: 700;\n  padding: 12px 18px;\n  cursor: pointer;\n}\n@media (max-width: 640px) {\n  .length-row[_ngcontent-%COMP%] {\n    grid-template-columns: 1fr;\n  }\n  .inline-field[_ngcontent-%COMP%] {\n    grid-template-columns: 1fr;\n    align-items: start;\n  }\n}\n/*# sourceMappingURL=prompt-form.css.map */"] });
 };
@@ -41732,6 +41854,7 @@ var PromptFormComponent = class _PromptFormComponent {
             id="sections"\r
             type="text"\r
             formControlName="sections"\r
+            placeholder="Abstract, Intro, Data, Analysis, Recommendations, Summary"\r
             (input)="onSectionsChanged()"\r
             (change)="onSectionsChanged()"\r
             (blur)="onSectionsChanged()"\r
@@ -41754,11 +41877,15 @@ var PromptFormComponent = class _PromptFormComponent {
             id="urls"\r
             type="text"\r
             formControlName="urls"\r
+            placeholder="http://www.yahoo.com, https://www.google.com"\r
             (input)="onUrlsChanged()"\r
             (change)="onUrlsChanged()"\r
             (blur)="onUrlsChanged()"\r
          />\r
       </div>\r
+      @if (form.controls.urls.touched && form.controls.urls.invalid) {\r
+         <p class="error">Enter valid absolute URLs separated by spaces or commas.</p>\r
+      }\r
    </div>\r
 \r
    <button type="submit">Save Prompt</button>\r
@@ -41766,7 +41893,7 @@ var PromptFormComponent = class _PromptFormComponent {
   }], () => [], { submitted: [{ type: Output, args: ["submitted"] }], prefillPrompt: [{ type: Input, args: [{ isSignal: true, alias: "prefillPrompt", required: false }] }] });
 })();
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PromptFormComponent, { className: "PromptFormComponent", filePath: "src/app/prompt/prompt-form/prompt-form.ts", lineNumber: 21 });
+  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PromptFormComponent, { className: "PromptFormComponent", filePath: "src/app/prompt/prompt-form/prompt-form.ts", lineNumber: 27 });
 })();
 
 // src/app/prompt/prompt-history/prompt-history.ts
@@ -41796,44 +41923,52 @@ function PromptHistoryComponent_Conditional_7_For_2_Template(rf, ctx) {
       ctx_r2.selectEntry(item_r2);
       return \u0275\u0275resetView($event.preventDefault());
     });
-    \u0275\u0275domElementStart(1, "h3");
-    \u0275\u0275text(2);
+    \u0275\u0275domElementStart(1, "button", 7);
+    \u0275\u0275domListener("click", function PromptHistoryComponent_Conditional_7_For_2_Template_button_click_1_listener($event) {
+      const item_r2 = \u0275\u0275restoreView(_r1).$implicit;
+      const ctx_r2 = \u0275\u0275nextContext(2);
+      return \u0275\u0275resetView(ctx_r2.deleteEntry(item_r2.id, $event));
+    });
+    \u0275\u0275text(2, " \u{1F5D1} ");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(3, "p", 7);
+    \u0275\u0275domElementStart(3, "h3");
     \u0275\u0275text(4);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(5, "details", 8);
-    \u0275\u0275domListener("click", function PromptHistoryComponent_Conditional_7_For_2_Template_details_click_5_listener($event) {
+    \u0275\u0275domElementStart(5, "p", 8);
+    \u0275\u0275text(6);
+    \u0275\u0275domElementEnd();
+    \u0275\u0275domElementStart(7, "details", 9);
+    \u0275\u0275domListener("click", function PromptHistoryComponent_Conditional_7_For_2_Template_details_click_7_listener($event) {
       return $event.stopPropagation();
     });
-    \u0275\u0275domElementStart(6, "summary");
-    \u0275\u0275text(7, "Show details");
+    \u0275\u0275domElementStart(8, "summary");
+    \u0275\u0275text(9, "Show details");
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(8, "p", 9);
-    \u0275\u0275text(9);
-    \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(10, "p", 9);
+    \u0275\u0275domElementStart(10, "p", 10);
     \u0275\u0275text(11);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(12, "p", 9);
+    \u0275\u0275domElementStart(12, "p", 10);
     \u0275\u0275text(13);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(14, "p", 9);
+    \u0275\u0275domElementStart(14, "p", 10);
     \u0275\u0275text(15);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(16, "p", 9);
+    \u0275\u0275domElementStart(16, "p", 10);
     \u0275\u0275text(17);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(18, "p", 9);
+    \u0275\u0275domElementStart(18, "p", 10);
     \u0275\u0275text(19);
     \u0275\u0275domElementEnd();
-    \u0275\u0275domElementStart(20, "p", 9);
+    \u0275\u0275domElementStart(20, "p", 10);
     \u0275\u0275text(21);
+    \u0275\u0275domElementEnd();
+    \u0275\u0275domElementStart(22, "p", 10);
+    \u0275\u0275text(23);
     \u0275\u0275domElementEnd()()();
   }
   if (rf & 2) {
     const item_r2 = ctx.$implicit;
-    \u0275\u0275advance(2);
+    \u0275\u0275advance(4);
     \u0275\u0275textInterpolate(item_r2.prompt);
     \u0275\u0275advance(2);
     \u0275\u0275textInterpolate(item_r2.createdAt);
@@ -41856,7 +41991,7 @@ function PromptHistoryComponent_Conditional_7_For_2_Template(rf, ctx) {
 function PromptHistoryComponent_Conditional_7_Template(rf, ctx) {
   if (rf & 1) {
     \u0275\u0275domElementStart(0, "div", 4);
-    \u0275\u0275repeaterCreate(1, PromptHistoryComponent_Conditional_7_For_2_Template, 22, 9, "article", 5, _forTrack0);
+    \u0275\u0275repeaterCreate(1, PromptHistoryComponent_Conditional_7_For_2_Template, 24, 9, "article", 5, _forTrack0);
     \u0275\u0275domElementEnd();
   }
   if (rf & 2) {
@@ -41874,13 +42009,18 @@ var PromptHistoryComponent = class _PromptHistoryComponent {
     )
   );
   selected = output();
+  deleted = output();
   selectEntry(entry) {
     this.selected.emit(entry);
+  }
+  deleteEntry(entryId, event) {
+    event.stopPropagation();
+    this.deleted.emit(entryId);
   }
   static \u0275fac = function PromptHistoryComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _PromptHistoryComponent)();
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptHistoryComponent, selectors: [["app-prompt-history"]], inputs: { history: [1, "history"] }, outputs: { selected: "selected" }, decls: 8, vars: 2, consts: [["aria-label", "Prompt history window", 1, "history-card"], [1, "history-header"], [1, "count"], [1, "empty"], [1, "history-list"], ["role", "button", "tabindex", "0", 1, "history-item", "selectable"], ["role", "button", "tabindex", "0", 1, "history-item", "selectable", 3, "click", "keydown.enter", "keydown.space"], [1, "time"], [1, "meta-details", 3, "click"], [1, "meta"]], template: function PromptHistoryComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptHistoryComponent, selectors: [["app-prompt-history"]], inputs: { history: [1, "history"] }, outputs: { selected: "selected", deleted: "deleted" }, decls: 8, vars: 2, consts: [["aria-label", "Prompt history window", 1, "history-card"], [1, "history-header"], [1, "count"], [1, "empty"], [1, "history-list"], ["role", "button", "tabindex", "0", 1, "history-item", "selectable"], ["role", "button", "tabindex", "0", 1, "history-item", "selectable", 3, "click", "keydown.enter", "keydown.space"], ["type", "button", "aria-label", "Delete prompt history entry", 1, "delete-entry", 3, "click"], [1, "time"], [1, "meta-details", 3, "click"], [1, "meta"]], template: function PromptHistoryComponent_Template(rf, ctx) {
     if (rf & 1) {
       \u0275\u0275domElementStart(0, "section", 0)(1, "header", 1)(2, "h2");
       \u0275\u0275text(3, "Prompt History");
@@ -41897,7 +42037,7 @@ var PromptHistoryComponent = class _PromptHistoryComponent {
       \u0275\u0275advance();
       \u0275\u0275conditional(ctx.history().length === 0 ? 6 : 7);
     }
-  }, styles: ["\n[_nghost-%COMP%] {\n  display: block;\n}\n.history-card[_ngcontent-%COMP%] {\n  background: #ffffff;\n  border: 1px solid #dbe4f0;\n  border-radius: 20px;\n  padding: 22px;\n  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);\n}\n.history-header[_ngcontent-%COMP%] {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  margin-bottom: 14px;\n}\n.history-header[_ngcontent-%COMP%]   h2[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #0f172a;\n}\n.count[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #334155;\n  font-weight: 600;\n}\n.empty[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #64748b;\n}\n.history-list[_ngcontent-%COMP%] {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n.history-item[_ngcontent-%COMP%] {\n  border: 1px solid #e2e8f0;\n  border-radius: 14px;\n  padding: 12px;\n  background: #f8fafc;\n}\n.history-item.selectable[_ngcontent-%COMP%] {\n  cursor: pointer;\n}\n.history-item.selectable[_ngcontent-%COMP%]:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item[_ngcontent-%COMP%]   h3[_ngcontent-%COMP%] {\n  margin: 0 0 4px;\n  color: #1e293b;\n  font-size: 1rem;\n}\n.time[_ngcontent-%COMP%] {\n  margin: 0 0 8px;\n  color: #64748b;\n  font-size: 0.85rem;\n}\n.meta-details[_ngcontent-%COMP%] {\n  margin-top: 6px;\n}\n.meta-details[_ngcontent-%COMP%]   summary[_ngcontent-%COMP%] {\n  color: #1d4ed8;\n  font-weight: 600;\n  font-size: 0.9rem;\n}\n.meta-details[open][_ngcontent-%COMP%]   summary[_ngcontent-%COMP%] {\n  margin-bottom: 6px;\n}\n.meta[_ngcontent-%COMP%] {\n  margin: 2px 0;\n  color: #334155;\n  font-size: 0.9rem;\n}\n/*# sourceMappingURL=prompt-history.css.map */"] });
+  }, styles: ["\n[_nghost-%COMP%] {\n  display: block;\n}\n.history-card[_ngcontent-%COMP%] {\n  background: #ffffff;\n  border: 1px solid #dbe4f0;\n  border-radius: 20px;\n  padding: 22px;\n  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);\n}\n.history-header[_ngcontent-%COMP%] {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  margin-bottom: 14px;\n}\n.history-header[_ngcontent-%COMP%]   h2[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #0f172a;\n}\n.count[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #334155;\n  font-weight: 600;\n}\n.empty[_ngcontent-%COMP%] {\n  margin: 0;\n  color: #64748b;\n}\n.history-list[_ngcontent-%COMP%] {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  max-height: 640px;\n  overflow-y: auto;\n  padding-right: 6px;\n}\n.history-item[_ngcontent-%COMP%] {\n  position: relative;\n  border: 1px solid #e2e8f0;\n  border-radius: 14px;\n  padding: 12px;\n  padding-right: 44px;\n  background: #f8fafc;\n}\n.delete-entry[_ngcontent-%COMP%] {\n  position: absolute;\n  top: 10px;\n  right: 10px;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 1rem;\n  font-weight: 700;\n  line-height: 1;\n  cursor: pointer;\n}\n.delete-entry[_ngcontent-%COMP%]:hover {\n  background: #fecaca;\n  color: #b91c1c;\n}\n.delete-entry[_ngcontent-%COMP%]:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item.selectable[_ngcontent-%COMP%] {\n  cursor: pointer;\n}\n.history-item.selectable[_ngcontent-%COMP%]:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item[_ngcontent-%COMP%]   h3[_ngcontent-%COMP%] {\n  margin: 0 0 4px;\n  color: #1e293b;\n  font-size: 1rem;\n}\n.time[_ngcontent-%COMP%] {\n  margin: 0 0 8px;\n  color: #64748b;\n  font-size: 0.85rem;\n}\n.meta-details[_ngcontent-%COMP%] {\n  margin-top: 6px;\n}\n.meta-details[_ngcontent-%COMP%]   summary[_ngcontent-%COMP%] {\n  color: #1d4ed8;\n  font-weight: 600;\n  font-size: 0.9rem;\n}\n.meta-details[open][_ngcontent-%COMP%]   summary[_ngcontent-%COMP%] {\n  margin-bottom: 6px;\n}\n.meta[_ngcontent-%COMP%] {\n  margin: 2px 0;\n  color: #334155;\n  font-size: 0.9rem;\n}\n/*# sourceMappingURL=prompt-history.css.map */"] });
 };
 (() => {
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(PromptHistoryComponent, [{
@@ -41921,6 +42061,14 @@ var PromptHistoryComponent = class _PromptHistoryComponent {
                (keydown.enter)="selectEntry(item)"\r
                (keydown.space)="selectEntry(item); $event.preventDefault()"\r
             >\r
+               <button\r
+                  class="delete-entry"\r
+                  type="button"\r
+                  aria-label="Delete prompt history entry"\r
+                  (click)="deleteEntry(item.id, $event)"\r
+               >\r
+                  \u{1F5D1}\r
+               </button>\r
                <h3>{{ item.prompt }}</h3>\r
                <p class="time">{{ item.createdAt }}</p>\r
                <details class="meta-details" (click)="$event.stopPropagation()">\r
@@ -41937,12 +42085,18 @@ var PromptHistoryComponent = class _PromptHistoryComponent {
          }\r
       </div>\r
    }\r
-</section>`, styles: ["/* src/app/prompt/prompt-history/prompt-history.css */\n:host {\n  display: block;\n}\n.history-card {\n  background: #ffffff;\n  border: 1px solid #dbe4f0;\n  border-radius: 20px;\n  padding: 22px;\n  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);\n}\n.history-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  margin-bottom: 14px;\n}\n.history-header h2 {\n  margin: 0;\n  color: #0f172a;\n}\n.count {\n  margin: 0;\n  color: #334155;\n  font-weight: 600;\n}\n.empty {\n  margin: 0;\n  color: #64748b;\n}\n.history-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n.history-item {\n  border: 1px solid #e2e8f0;\n  border-radius: 14px;\n  padding: 12px;\n  background: #f8fafc;\n}\n.history-item.selectable {\n  cursor: pointer;\n}\n.history-item.selectable:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item h3 {\n  margin: 0 0 4px;\n  color: #1e293b;\n  font-size: 1rem;\n}\n.time {\n  margin: 0 0 8px;\n  color: #64748b;\n  font-size: 0.85rem;\n}\n.meta-details {\n  margin-top: 6px;\n}\n.meta-details summary {\n  color: #1d4ed8;\n  font-weight: 600;\n  font-size: 0.9rem;\n}\n.meta-details[open] summary {\n  margin-bottom: 6px;\n}\n.meta {\n  margin: 2px 0;\n  color: #334155;\n  font-size: 0.9rem;\n}\n/*# sourceMappingURL=prompt-history.css.map */\n"] }]
-  }], null, { history: [{ type: Input, args: [{ isSignal: true, alias: "history", required: false }] }], selected: [{ type: Output, args: ["selected"] }] });
+</section>`, styles: ["/* src/app/prompt/prompt-history/prompt-history.css */\n:host {\n  display: block;\n}\n.history-card {\n  background: #ffffff;\n  border: 1px solid #dbe4f0;\n  border-radius: 20px;\n  padding: 22px;\n  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);\n}\n.history-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: baseline;\n  margin-bottom: 14px;\n}\n.history-header h2 {\n  margin: 0;\n  color: #0f172a;\n}\n.count {\n  margin: 0;\n  color: #334155;\n  font-weight: 600;\n}\n.empty {\n  margin: 0;\n  color: #64748b;\n}\n.history-list {\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n  max-height: 640px;\n  overflow-y: auto;\n  padding-right: 6px;\n}\n.history-item {\n  position: relative;\n  border: 1px solid #e2e8f0;\n  border-radius: 14px;\n  padding: 12px;\n  padding-right: 44px;\n  background: #f8fafc;\n}\n.delete-entry {\n  position: absolute;\n  top: 10px;\n  right: 10px;\n  width: 28px;\n  height: 28px;\n  border: 0;\n  border-radius: 999px;\n  background: #e2e8f0;\n  color: #475569;\n  font-size: 1rem;\n  font-weight: 700;\n  line-height: 1;\n  cursor: pointer;\n}\n.delete-entry:hover {\n  background: #fecaca;\n  color: #b91c1c;\n}\n.delete-entry:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item.selectable {\n  cursor: pointer;\n}\n.history-item.selectable:focus-visible {\n  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n}\n.history-item h3 {\n  margin: 0 0 4px;\n  color: #1e293b;\n  font-size: 1rem;\n}\n.time {\n  margin: 0 0 8px;\n  color: #64748b;\n  font-size: 0.85rem;\n}\n.meta-details {\n  margin-top: 6px;\n}\n.meta-details summary {\n  color: #1d4ed8;\n  font-weight: 600;\n  font-size: 0.9rem;\n}\n.meta-details[open] summary {\n  margin-bottom: 6px;\n}\n.meta {\n  margin: 2px 0;\n  color: #334155;\n  font-size: 0.9rem;\n}\n/*# sourceMappingURL=prompt-history.css.map */\n"] }]
+  }], null, { history: [{ type: Input, args: [{ isSignal: true, alias: "history", required: false }] }], selected: [{ type: Output, args: ["selected"] }], deleted: [{ type: Output, args: ["deleted"] }] });
 })();
 (() => {
   (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PromptHistoryComponent, { className: "PromptHistoryComponent", filePath: "src/app/prompt/prompt-history/prompt-history.ts", lineNumber: 21 });
 })();
+
+// src/app/prompt/build-info.ts
+var BUILD_INFO = {
+  buildNumber: 3,
+  lastBuiltOn: "July 17, 2026"
+};
 
 // src/app/prompt/prompt.ts
 function PromptComponent_Conditional_7_Template(rf, ctx) {
@@ -41990,11 +42144,8 @@ function PromptComponent_Conditional_7_Template(rf, ctx) {
 }
 var PromptComponent = class _PromptComponent {
   static historyStorageKey = "prompt-history";
-  lastBuiltOn = (/* @__PURE__ */ new Date()).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
+  lastBuiltOn = BUILD_INFO.lastBuiltOn;
+  buildNumber = BUILD_INFO.buildNumber;
   history = signal(
     [],
     ...ngDevMode ? [{ debugName: "history" }] : (
@@ -42027,6 +42178,7 @@ var PromptComponent = class _PromptComponent {
     this.history.set(this.loadHistory());
   }
   handlePromptSubmitted(value) {
+    const promptExists = this.history().some((entry) => entry.prompt === value.prompt);
     const item = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       prompt: value.prompt,
@@ -42039,8 +42191,10 @@ var PromptComponent = class _PromptComponent {
       urls: value.urls,
       createdAt: (/* @__PURE__ */ new Date()).toLocaleString()
     };
-    this.history.update((current) => [item, ...current]);
-    this.saveHistory();
+    if (!promptExists) {
+      this.history.update((current) => [item, ...current]);
+      this.saveHistory();
+    }
     this.selectedPrompt.set(value);
     this.showSummaryPopup.set(true);
   }
@@ -42058,6 +42212,10 @@ var PromptComponent = class _PromptComponent {
       files: entry.files,
       urls: entry.urls
     });
+  }
+  handleHistoryDeleted(entryId) {
+    this.history.update((current) => current.filter((entry) => entry.id !== entryId));
+    this.saveHistory();
   }
   exportPromptSummary() {
     const selectedPrompt = this.selectedPrompt();
@@ -42102,7 +42260,7 @@ var PromptComponent = class _PromptComponent {
   static \u0275fac = function PromptComponent_Factory(__ngFactoryType__) {
     return new (__ngFactoryType__ || _PromptComponent)();
   };
-  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptComponent, selectors: [["app-prompt"]], decls: 8, vars: 4, consts: [["aria-label", "Prompt builder workspace", 1, "prompt-shell"], [1, "hero"], [1, "build-date"], [1, "layout-grid"], [3, "submitted", "prefillPrompt"], [3, "selected", "history"], ["role", "presentation", 1, "popup-backdrop"], ["role", "dialog", "aria-modal", "true", "aria-label", "Saved prompt", 1, "popup-card"], ["type", "button", "aria-label", "Close popup", 1, "popup-close", 3, "click"], [1, "popup-prompt"], [1, "popup-prompt-prefix"], [1, "popup-prompt-suffix"], [1, "popup-actions"], ["type", "button", 1, "export", 3, "click"], ["type", "button", 1, "dismiss", 3, "click"]], template: function PromptComponent_Template(rf, ctx) {
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _PromptComponent, selectors: [["app-prompt"]], decls: 8, vars: 5, consts: [["aria-label", "Prompt builder workspace", 1, "prompt-shell"], [1, "hero"], [1, "build-date"], [1, "layout-grid"], [3, "submitted", "prefillPrompt"], [3, "selected", "deleted", "history"], ["role", "presentation", 1, "popup-backdrop"], ["role", "dialog", "aria-modal", "true", "aria-label", "Saved prompt", 1, "popup-card"], ["type", "button", "aria-label", "Close popup", 1, "popup-close", 3, "click"], [1, "popup-prompt"], [1, "popup-prompt-prefix"], [1, "popup-prompt-suffix"], [1, "popup-actions"], ["type", "button", 1, "export", 3, "click"], ["type", "button", 1, "dismiss", 3, "click"]], template: function PromptComponent_Template(rf, ctx) {
     if (rf & 1) {
       \u0275\u0275elementStart(0, "section", 0)(1, "header", 1)(2, "p", 2);
       \u0275\u0275text(3);
@@ -42115,6 +42273,8 @@ var PromptComponent = class _PromptComponent {
       \u0275\u0275elementStart(6, "app-prompt-history", 5);
       \u0275\u0275listener("selected", function PromptComponent_Template_app_prompt_history_selected_6_listener($event) {
         return ctx.handleHistorySelected($event);
+      })("deleted", function PromptComponent_Template_app_prompt_history_deleted_6_listener($event) {
+        return ctx.handleHistoryDeleted($event);
       });
       \u0275\u0275elementEnd()()();
       \u0275\u0275conditionalCreate(7, PromptComponent_Conditional_7_Template, 17, 1, "div", 6);
@@ -42122,7 +42282,7 @@ var PromptComponent = class _PromptComponent {
     if (rf & 2) {
       let tmp_3_0;
       \u0275\u0275advance(3);
-      \u0275\u0275textInterpolate1("Last built on: ", ctx.lastBuiltOn);
+      \u0275\u0275textInterpolate2("Last built on: ", ctx.lastBuiltOn, " | Build ", ctx.buildNumber);
       \u0275\u0275advance(2);
       \u0275\u0275property("prefillPrompt", ctx.selectedHistoryPrompt());
       \u0275\u0275advance();
@@ -42137,7 +42297,7 @@ var PromptComponent = class _PromptComponent {
     type: Component,
     args: [{ selector: "app-prompt", imports: [PromptFormComponent, PromptHistoryComponent], template: `<section class="prompt-shell" aria-label="Prompt builder workspace">\r
    <header class="hero">\r
-   <p class="build-date">Last built on: {{ lastBuiltOn }}</p>\r
+   <p class="build-date">Last built on: {{ lastBuiltOn }} | Build {{ buildNumber }}</p>\r
    </header>\r
 \r
    <div class="layout-grid">\r
@@ -42145,7 +42305,11 @@ var PromptComponent = class _PromptComponent {
          [prefillPrompt]="selectedHistoryPrompt()"\r
          (submitted)="handlePromptSubmitted($event)"\r
       />\r
-      <app-prompt-history [history]="history()" (selected)="handleHistorySelected($event)" />\r
+      <app-prompt-history\r
+         [history]="history()"\r
+         (selected)="handleHistorySelected($event)"\r
+         (deleted)="handleHistoryDeleted($event)"\r
+      />\r
    </div>\r
 </section>\r
 \r
@@ -42181,7 +42345,7 @@ var PromptComponent = class _PromptComponent {
   }], () => [], null);
 })();
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PromptComponent, { className: "PromptComponent", filePath: "src/app/prompt/prompt.ts", lineNumber: 11 });
+  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(PromptComponent, { className: "PromptComponent", filePath: "src/app/prompt/prompt.ts", lineNumber: 12 });
 })();
 
 // src/app/app.routes.ts
