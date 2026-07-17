@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["src/styles.css"],
+  "sourcesContent": [":root {\r\n   color-scheme: light;\r\n   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\r\n   line-height: 1.5;\r\n   font-weight: 400;\r\n   color: #0f172a;\r\n   background: #f5f7fb;\r\n}\r\n\r\n* {\r\n   box-sizing: border-box;\r\n}\r\n\r\nbody {\r\n   margin: 0;\r\n   min-height: 100vh;\r\n   background: linear-gradient(140deg, #f5f7fb 0%, #ecf1ff 55%, #f7faff 100%);\r\n}"],
+  "mappings": ";AAAA;AACG,gBAAc;AACd;AAAA,IAAa,UAAU;AAAA,IAAE,MAAM;AAAA,IAAE,MAAM;AAAA,IAAE,OAAO;AAAA,IAAE;AAClD,eAAa;AACb,eAAa;AACb,SAAO;AACP,cAAY;AACf;AAEA;AACG,cAAY;AACf;AAEA;AACG,UAAQ;AACR,cAAY;AACZ;AAAA,IAAY;AAAA,MAAgB,MAAhB;AAAA,MAAwB,QAAQ,EAAhC;AAAA,MAAoC,QAAQ,GAA5C;AAAA,MAAiD,QAAQ;AACxE;",
+  "names": []
+}
